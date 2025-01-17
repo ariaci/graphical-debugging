@@ -158,7 +158,7 @@ namespace GraphicalDebugging
                         return null;
 
                     exprHeadPointer.Reinitialize(debugger, name, type);
-                    exprSize.Reinitialize(debugger, name, type);
+                    exprSize?.Reinitialize(debugger, name, type);
                     string headName = '*' + exprHeadPointer.GetString(name);
                     string headType = debugger.GetValueType(headName);
                     exprNextPointer.Reinitialize(debugger, headName, headType);
@@ -173,7 +173,7 @@ namespace GraphicalDebugging
                     return new UserLinkedList(exprHeadPointer.DeepCopy(),
                                               exprNextPointer.DeepCopy(),
                                               exprValue.DeepCopy(),
-                                              exprSize.DeepCopy(),
+                                              exprSize?.DeepCopy(),
                                               elemType);
                 }
 
@@ -207,7 +207,7 @@ namespace GraphicalDebugging
 
             public override int LoadSize(Debugger debugger, string name)
             {
-                return debugger.TryLoadUInt(exprSize.GetString(name), out int result) ? result : 0;
+                return exprSize != null ? (debugger.TryLoadUInt(exprSize.GetString(name), out int result) ? result : 0) : 0;
             }
 
             public override Size LoadSize(MemoryReader mreader, ulong address)
@@ -225,7 +225,7 @@ namespace GraphicalDebugging
                     return false;
 
                 int size = LoadSize(debugger, name);
-                if (size <= 0)
+                if (exprSize != null && size <= 0)
                     return true;
 
                 string headPointerName = exprHeadPointer.GetString(name);
@@ -243,10 +243,14 @@ namespace GraphicalDebugging
 
                 if (!debugger.GetAddressOffset(headName, nextPointerName, out long nextDiff)
                  || !debugger.GetAddressOffset(headName, valName, out long valDiff)
-                 || !debugger.GetValueAddress(headName, out ulong nodeAddress))
+                 || !debugger.GetValueAddress(headName, out ulong headNodeAddress))
                     return false;
 
-                for (int i = 0; i < size; ++i)
+                if (headNodeAddress == 0)
+                    return true;
+
+                var nodeAddress = headNodeAddress;
+                for (int i = 0; exprSize == null || i < size; ++i)
                 {
                     T[] values = new T[elementConverter.ValueCount()];
                     if (!mreader.Read(nodeAddress + (ulong)valDiff, values, elementConverter))
@@ -259,21 +263,61 @@ namespace GraphicalDebugging
                     if (!mreader.Read(nodeAddress + (ulong)nextDiff, nextTmp, nextConverter))
                         return false;
                     nodeAddress = nextTmp[0];
+
+                    if (exprSize == null && (nodeAddress == 0 || nodeAddress == headNodeAddress))
+                        break;
                 }
                 return true;
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
-                int size = this.LoadSize(debugger, name);
+                int size = LoadSize(debugger, name);
 
                 string nodeName = '*' + exprHeadPointer.GetString(name);
-                for (int i = 0; i < size; ++i)
+
+                MemoryReader.ValueConverter<ulong> nextConverter = null;
+                ulong headNodeAddress = 0;
+                long nextDiff = 0;
+
+                if (exprSize == null)
+                {
+                    string nextPointerName = exprNextPointer.GetString(nodeName);
+
+                    TypeInfo nextInfo = new TypeInfo(debugger, nextPointerName);
+                    if (!nextInfo.IsValid)
+                        return true;
+
+                    nextConverter = mreader.GetPointerConverter(nextInfo.Type, nextInfo.Size);
+                    if (nextConverter == null)
+                        return false;
+
+                    if (!debugger.GetAddressOffset(nodeName, nextPointerName, out nextDiff)
+                     || !debugger.GetValueAddress(nodeName, out headNodeAddress))
+                        return false;
+
+                    if (headNodeAddress == 0)
+                        return true;
+                }
+
+                var nodeAddress = headNodeAddress;
+                for (int i = 0; exprSize == null || i < size; ++i)
                 {
                     string elName = exprValue.GetString(nodeName);
                     if (!elementPredicate(elName))
                         return false;
                     nodeName = '*' + exprNextPointer.GetString(nodeName);
+
+                    if (exprSize == null)
+                    {
+                        ulong[] nextTmp = new ulong[1];
+                        if (!mreader.Read(nodeAddress + (ulong)nextDiff, nextTmp, nextConverter))
+                            return false;
+                        nodeAddress = nextTmp[0];
+
+                        if (exprSize == null && (nodeAddress == 0 || nodeAddress == headNodeAddress))
+                            break;
+                    }
                 }
                 return true;
             }
@@ -1278,7 +1322,7 @@ namespace GraphicalDebugging
                 this.exprHeadPointer = new ClassScopeExpression(strHeadPointer);
                 this.exprNextPointer = new ClassScopeExpression(strNextPointer);
                 this.exprValue = new ClassScopeExpression(strValue);
-                this.exprSize = new ClassScopeExpression(strSize);
+                this.exprSize = strSize != null ? new ClassScopeExpression(strSize) : null;
             }
 
             public UserContainerLoaders<ElementLoader> Create<ElementLoader>(
@@ -1519,7 +1563,7 @@ namespace GraphicalDebugging
                 ExpressionDrawer.MultiLinestring mls = new ExpressionDrawer.MultiLinestring();
                 string containerName = containerLoaders.ContainerNameExpr.GetString(name);
                 bool ok = containerLoaders.ContainerLoader.ForEachElement(
-                    debugger, containerName,
+                    mreader, debugger, containerName,
                     delegate (string elName)
                     {
                         ExpressionDrawer.Linestring ls = containerLoaders.ElementLoader.Load(
@@ -1634,7 +1678,7 @@ namespace GraphicalDebugging
                 List<Geometry.Ring> inners = new List<Geometry.Ring>();
                 string innersName = innersLoaders.ContainerNameExpr.GetString(name);
                 bool ok = innersLoaders.ContainerLoader.ForEachElement(
-                    debugger, innersName,
+                    mreader, debugger, innersName,
                     delegate (string elName)
                     {
                         if (i++ < innersOffset)
@@ -1712,7 +1756,7 @@ namespace GraphicalDebugging
                 ExpressionDrawer.MultiPolygon mpoly = new ExpressionDrawer.MultiPolygon();
                 string containerName = containerLoaders.ContainerNameExpr.GetString(name);
                 bool ok = containerLoaders.ContainerLoader.ForEachElement(
-                    debugger, containerName,
+                    mreader, debugger, containerName,
                     delegate (string elName)
                     {
                         ExpressionDrawer.Polygon poly = containerLoaders.ElementLoader.Load(
@@ -1781,7 +1825,7 @@ namespace GraphicalDebugging
                 ExpressionDrawer.DrawablesContainer drawables = new ExpressionDrawer.DrawablesContainer();
                 string containerName = containerLoaders.ContainerNameExpr.GetString(name);
                 bool ok = containerLoaders.ContainerLoader.ForEachElement(
-                    debugger, containerName,
+                    mreader, debugger, containerName,
                     delegate (string elName)
                     {
                         ExpressionDrawer.IDrawable drawable = containerLoaders.ElementLoader.Load(
@@ -1877,15 +1921,14 @@ namespace GraphicalDebugging
                                 var elNextPointer = Util.GetXmlElementByTagName(elLinkedList, "NextPointer");
                                 var elValue = Util.GetXmlElementByTagName(elLinkedList, "Value");
                                 var elSize = Util.GetXmlElementByTagName(elLinkedList, "Size");
-                                if (elHeadPointer != null && elNextPointer != null
-                                        && elValue != null && elSize != null)
+                                if (elHeadPointer != null && elNextPointer != null && elValue != null)
                                 {
                                     loaders.Add(new UserLinkedList.LoaderCreator(
                                                     typeMatcher,
                                                     new ClassScopeExpression(elHeadPointer.InnerText),
                                                     new ClassScopeExpression(elNextPointer.InnerText),
                                                     new ClassScopeExpression(elValue.InnerText),
-                                                    new ClassScopeExpression(elSize.InnerText)));
+                                                    elSize != null ? new ClassScopeExpression(elSize.InnerText) : null));
                                 }
                             }
                         }
@@ -2171,13 +2214,12 @@ namespace GraphicalDebugging
                             var elNextPointer = Util.GetXmlElementByTagName(elLinkedList, "NextPointer");
                             var elValue = Util.GetXmlElementByTagName(elLinkedList, "Value");
                             var elSize = Util.GetXmlElementByTagName(elLinkedList, "Size");
-                            if (elHeadPointer != null && elNextPointer != null
-                                    && elValue != null && elSize != null)
+                            if (elHeadPointer != null && elNextPointer != null && elValue != null)
                             {
                                 return new UserLinkedListEntry(elHeadPointer.InnerText,
                                                                elNextPointer.InnerText,
                                                                elValue.InnerText,
-                                                               elSize.InnerText);
+                                                               elSize?.InnerText);
                             }
                         }
                     }

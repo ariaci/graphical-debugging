@@ -653,7 +653,7 @@ namespace GraphicalDebugging
                                                             LoadCallback callback)
             {
                 ExpressionDrawer.MultiLinestring mls = new ExpressionDrawer.MultiLinestring();
-                bool ok = containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                bool ok = containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     ExpressionDrawer.Linestring ls = lsLoader.Load(mreader, debugger,
                                                                    elName, lsType,
@@ -781,7 +781,7 @@ namespace GraphicalDebugging
                     return null;
 
                 List<Geometry.Ring> inners = new List<Geometry.Ring>();
-                bool ok = innersLoader.ForEachElement(debugger, innersName, delegate (string elName)
+                bool ok = innersLoader.ForEachElement(mreader, debugger, innersName, delegate (string elName)
                 {
                     ExpressionDrawer.Ring inner = outerLoader.Load(mreader, debugger,
                                                                    elName, outerType,
@@ -854,7 +854,7 @@ namespace GraphicalDebugging
                                                             LoadCallback callback)
             {
                 ExpressionDrawer.MultiPolygon mpoly = new ExpressionDrawer.MultiPolygon();
-                bool ok = containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                bool ok = containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     ExpressionDrawer.Polygon poly = polyLoader.Load(mreader, debugger,
                                                                     elName, polyType,
@@ -981,7 +981,7 @@ namespace GraphicalDebugging
                                                             LoadCallback callback)
             {
                 ExpressionDrawer.MultiPolygon mpoly = new ExpressionDrawer.MultiPolygon();
-                bool ok = containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                bool ok = containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     ExpressionDrawer.Ring ring = ringLoader.Load(mreader, debugger,
                                                                  elName, ringType,
@@ -1315,7 +1315,7 @@ namespace GraphicalDebugging
                 }
                 string elementsName = NodeElements(nodePtrName, nodeType);
 
-                bool ok = elementsLoader.ForEachElement(debugger, elementsName, delegate (string elName)
+                bool ok = elementsLoader.ForEachElement(mreader, debugger, elementsName, delegate (string elName)
                 {
                     if (isLeaf)
                     {
@@ -1634,7 +1634,7 @@ namespace GraphicalDebugging
                                                             LoadCallback callback)
             {
                 List<ExpressionDrawer.Turn> turns = new List<ExpressionDrawer.Turn>();
-                bool ok = containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                bool ok = containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     ExpressionDrawer.Turn turn = turnLoader.Load(mreader, debugger,
                                                                  elName, turnType,
@@ -1912,7 +1912,7 @@ namespace GraphicalDebugging
                     return null;
 
                 List<Geometry.Ring> holes = new List<Geometry.Ring>();
-                bool ok = holesLoader.ForEachElement(debugger, member_holes_, delegate (string elName)
+                bool ok = holesLoader.ForEachElement(mreader, debugger, member_holes_, delegate (string elName)
                 {
                     ExpressionDrawer.Ring hole = outerLoader.Load(mreader, debugger,
                                                                   elName, polygonType,

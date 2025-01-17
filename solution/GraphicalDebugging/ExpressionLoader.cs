@@ -809,7 +809,7 @@ namespace GraphicalDebugging
                                             LoadCallback callback)
             {
                 ResultType result = new ResultType();
-                containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     ExpressionDrawer.Point p = pointLoader.LoadPoint(mreader, debugger, elName, pointType);
                     if (p == null)
@@ -989,7 +989,7 @@ namespace GraphicalDebugging
                                                                    LoadCallback callback)
             {
                 ExpressionDrawer.DrawablesContainer drawables = new ExpressionDrawer.DrawablesContainer();
-                if (containerLoader.ForEachElement(debugger, name,
+                if (containerLoader.ForEachElement(mreader, debugger, name,
                         delegate (string elName)
                         {
                             ExpressionDrawer.IDrawable drawable = geometryLoader.Load(
@@ -1239,7 +1239,7 @@ namespace GraphicalDebugging
             {                
                 result = null;
                 List<double> values = new List<double>();
-                bool ok = containerLoader.ForEachElement(debugger, name, delegate (string elName)
+                bool ok = containerLoader.ForEachElement(mreader, debugger, name, delegate (string elName)
                 {
                     double value = double.NaN;
                     if (valueLoader != null)

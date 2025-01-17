@@ -40,7 +40,7 @@ namespace GraphicalDebugging
             abstract public int LoadSize(Debugger debugger, string name);
 
             public delegate bool ElementPredicate(string elementName);
-            abstract public bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate);
+            abstract public bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate);
 
             // ForEachMemoryBlock calling ReadArray taking ElementLoader returned by ContainerLoader
             // With ReadArray knowing which memory copying optimizations can be made based on ElementLoader's type
@@ -85,7 +85,7 @@ namespace GraphicalDebugging
 
         abstract class RandomAccessContainer : ContainerLoader
         {
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
                 int size = this.LoadSize(debugger, name);
                 string rawName = this.RandomAccessName(name);
@@ -631,7 +631,7 @@ namespace GraphicalDebugging
                 elemName = "(*(" + name + ".m_first))";
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
                 int size = sizeMember.LoadParsed(debugger, name);
                 int size_fe = firstEndDistance.LoadParsed(debugger, name);
@@ -1059,7 +1059,7 @@ namespace GraphicalDebugging
                 return size.LoadMemory(mreader, address);
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
                 int size = this.LoadSize(debugger, name);
                 
@@ -1240,7 +1240,7 @@ namespace GraphicalDebugging
                 return size.LoadMemory(mreader, address);
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
                 int size = LoadSize(debugger, name);
                 if (size <= 0)
@@ -1491,7 +1491,7 @@ namespace GraphicalDebugging
                 return true;
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
                 int size = this.LoadSize(debugger, name);
 
@@ -1552,9 +1552,9 @@ namespace GraphicalDebugging
                 return loader.LoadSize(debugger, DerivedName(derivedType, name));
             }
 
-            public override bool ForEachElement(Debugger debugger, string name, ElementPredicate elementPredicate)
+            public override bool ForEachElement(MemoryReader mreader, Debugger debugger, string name, ElementPredicate elementPredicate)
             {
-                return loader.ForEachElement(debugger, DerivedName(derivedType, name), elementPredicate);
+                return loader.ForEachElement(mreader, debugger, DerivedName(derivedType, name), elementPredicate);
             }
 
             public override Size LoadSize(MemoryReader mreader, ulong address)
