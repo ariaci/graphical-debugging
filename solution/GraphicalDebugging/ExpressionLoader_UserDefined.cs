@@ -13,6 +13,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
+using System.Windows.Documents;
 
 namespace GraphicalDebugging
 {
@@ -158,7 +159,7 @@ namespace GraphicalDebugging
                         return null;
 
                     exprHeadPointer.Reinitialize(debugger, name, type);
-                    exprSize.Reinitialize(debugger, name, type);
+                    exprSize?.Reinitialize(debugger, name, type);
                     string headName = '*' + exprHeadPointer.GetString(name);
                     string headType = debugger.GetValueType(headName);
                     exprNextPointer.Reinitialize(debugger, headName, headType);
@@ -173,7 +174,7 @@ namespace GraphicalDebugging
                     return new UserLinkedList(exprHeadPointer.DeepCopy(),
                                               exprNextPointer.DeepCopy(),
                                               exprValue.DeepCopy(),
-                                              exprSize.DeepCopy(),
+                                              exprSize?.DeepCopy(),
                                               elemType);
                 }
 
@@ -207,7 +208,26 @@ namespace GraphicalDebugging
 
             public override int LoadSize(Debugger debugger, string name)
             {
-                return debugger.TryLoadUInt(exprSize.GetString(name), out int result) ? result : 0;
+                if (exprSize != null)
+                    return debugger.TryLoadUInt(exprSize.GetString(name), out int result) ? result : 0;
+
+                string nodeName = exprHeadPointer.GetString(name);
+                if (!debugger.GetPointer(nodeName, out ulong headNodePtr))
+                    return 0;
+
+                var size = 0;
+                var nodePtr = headNodePtr;
+                do
+                {
+                    ++size;
+
+                    nodeName = exprNextPointer.GetString('*' + nodeName);
+                    if (!debugger.GetPointer(nodeName, out nodePtr))
+                        return size;
+                }
+                while (nodePtr != 0 && nodePtr != headNodePtr);
+
+                return size;
             }
 
             public override Size LoadSize(MemoryReader mreader, ulong address)
@@ -224,8 +244,8 @@ namespace GraphicalDebugging
                 if (mreader == null)
                     return false;
 
-                int size = LoadSize(debugger, name);
-                if (size <= 0)
+                int size = exprSize != null ? LoadSize(debugger, name) : 0;
+                if (exprSize != null && size <= 0)
                     return true;
 
                 string headPointerName = exprHeadPointer.GetString(name);
@@ -243,10 +263,14 @@ namespace GraphicalDebugging
 
                 if (!debugger.GetAddressOffset(headName, nextPointerName, out long nextDiff)
                  || !debugger.GetAddressOffset(headName, valName, out long valDiff)
-                 || !debugger.GetValueAddress(headName, out ulong nodeAddress))
+                 || !debugger.GetValueAddress(headName, out ulong headNodeAddress))
                     return false;
 
-                for (int i = 0; i < size; ++i)
+                if (headNodeAddress == 0)
+                    return true;
+
+                var nodeAddress = headNodeAddress;
+                for (int i = 0; exprSize == null || i < size; ++i)
                 {
                     T[] values = new T[elementConverter.ValueCount()];
                     if (!mreader.Read(nodeAddress + (ulong)valDiff, values, elementConverter))
@@ -259,6 +283,9 @@ namespace GraphicalDebugging
                     if (!mreader.Read(nodeAddress + (ulong)nextDiff, nextTmp, nextConverter))
                         return false;
                     nodeAddress = nextTmp[0];
+
+                    if (exprSize == null && (nodeAddress == 0 || nodeAddress == headNodeAddress))
+                        break;
                 }
                 return true;
             }
@@ -1278,7 +1305,7 @@ namespace GraphicalDebugging
                 this.exprHeadPointer = new ClassScopeExpression(strHeadPointer);
                 this.exprNextPointer = new ClassScopeExpression(strNextPointer);
                 this.exprValue = new ClassScopeExpression(strValue);
-                this.exprSize = new ClassScopeExpression(strSize);
+                this.exprSize = strSize != null ? new ClassScopeExpression(strSize) : null;
             }
 
             public UserContainerLoaders<ElementLoader> Create<ElementLoader>(
@@ -1877,15 +1904,14 @@ namespace GraphicalDebugging
                                 var elNextPointer = Util.GetXmlElementByTagName(elLinkedList, "NextPointer");
                                 var elValue = Util.GetXmlElementByTagName(elLinkedList, "Value");
                                 var elSize = Util.GetXmlElementByTagName(elLinkedList, "Size");
-                                if (elHeadPointer != null && elNextPointer != null
-                                        && elValue != null && elSize != null)
+                                if (elHeadPointer != null && elNextPointer != null && elValue != null)
                                 {
                                     loaders.Add(new UserLinkedList.LoaderCreator(
                                                     typeMatcher,
                                                     new ClassScopeExpression(elHeadPointer.InnerText),
                                                     new ClassScopeExpression(elNextPointer.InnerText),
                                                     new ClassScopeExpression(elValue.InnerText),
-                                                    new ClassScopeExpression(elSize.InnerText)));
+                                                    elSize != null ? new ClassScopeExpression(elSize.InnerText) : null));
                                 }
                             }
                         }
@@ -2171,13 +2197,12 @@ namespace GraphicalDebugging
                             var elNextPointer = Util.GetXmlElementByTagName(elLinkedList, "NextPointer");
                             var elValue = Util.GetXmlElementByTagName(elLinkedList, "Value");
                             var elSize = Util.GetXmlElementByTagName(elLinkedList, "Size");
-                            if (elHeadPointer != null && elNextPointer != null
-                                    && elValue != null && elSize != null)
+                            if (elHeadPointer != null && elNextPointer != null && elValue != null)
                             {
                                 return new UserLinkedListEntry(elHeadPointer.InnerText,
                                                                elNextPointer.InnerText,
                                                                elValue.InnerText,
-                                                               elSize.InnerText);
+                                                               elSize?.InnerText);
                             }
                         }
                     }
